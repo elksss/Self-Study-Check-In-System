@@ -22,7 +22,11 @@
 <body>
 
 <div class="container-custom">
-  <div class="card-container">
+  <div id="security-warning" class="alert alert-danger fw-bold d-none">
+    ⚠️ 시스템 오류: 웹 주소창 뒤에 올바른 구글 API 보안 키(URL)가 붙어있지 않습니다. 관리자 전용 링크로 접속해 주세요.
+  </div>
+
+  <div id="main-app-content" class="card-container">
     <h2 class="text-center mb-4 fw-bold text-dark">🏫 교시별 출석 관리 시스템 (GitHub 고속 서버)</h2>
     
     <ul class="nav nav-pills nav-fill mb-4" id="myTab" role="tablist">
@@ -101,8 +105,13 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  // 🔗 [필수 수정] 구글 배포 주소를 아래 큰따옴표 내부에 입력하세요.
-  var GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzI01HjSBtTy-0mFFv2Oo39TvcM218o7Bz7Tx82yH9nbD4oiEJ4yMm9YGDrtisgtfJPcg/exec";
+  // 주소창 파라미터에서 구글 웹앱 URL 주소를 동적으로 읽어옵니다. (코드 저장소에 보안 노출 차단)
+  function getGasUrlFromParam() {
+    var urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('key'); 
+  }
+
+  var GAS_WEBAPP_URL = getGasUrlFromParam();
 
   var rawStudentsList = []; 
   var dayFilteredStudents = []; 
@@ -110,6 +119,12 @@
   var dropdownInitialized = false; 
 
   window.onload = function() {
+    if (!GAS_WEBAPP_URL) {
+      document.getElementById('main-app-content').classList.add('d-none');
+      document.getElementById('security-warning').classList.remove('d-none');
+      return;
+    }
+
     var today = new Date().toISOString().split('T')[0];
     document.getElementById('attendance-date').value = today;
     var yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
@@ -119,11 +134,10 @@
 
   function loadStudentDataFromServer() {
     var dateStr = document.getElementById('attendance-date').value;
-    if(!dateStr) return;
+    if(!dateStr || !GAS_WEBAPP_URL) return;
     var tbody = document.getElementById('student-table-body');
     tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">구글 서버와 통신하여 출결 데이터를 동기화 중...</td></tr>';
 
-    // 깃허브에서 표준 fetch() 방식으로 구글 시트 데이터를 요청하는 메커니즘
     fetch(GAS_WEBAPP_URL + "?date=" + dateStr)
       .then(response => response.json())
       .then(list => {
@@ -218,7 +232,7 @@
 
   function submitAttendance() {
     var dateStr = document.getElementById('attendance-date').value;
-    if(!dateStr) return;
+    if(!dateStr || !GAS_WEBAPP_URL) return;
     
     var payload = [];
     displayedStudents.forEach(function(student) {
@@ -238,7 +252,6 @@
       var btn = document.getElementById('btn-submit');
       btn.disabled = true; btn.innerText = "구글 시트에 실시간 기록 중...";
 
-      // 구글 스크립트 서버로 POST 데이터 전송
       fetch(GAS_WEBAPP_URL, {
         method: "POST",
         body: JSON.stringify({date: dateStr, payload: payload})
@@ -261,7 +274,7 @@
 
   function loadHistory() {
     var dateStr = document.getElementById('search-date').value;
-    if(!dateStr) return;
+    if(!dateStr || !GAS_WEBAPP_URL) return;
     var tbody = document.getElementById('history-table-body');
     tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">조회 중...</td></tr>';
 
