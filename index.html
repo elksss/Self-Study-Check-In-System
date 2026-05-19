@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>교시별 출석 관리 시스템</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f4f6f9; font-size: 0.95rem; color: #333333; }
+    .container-custom { max-width: 1000px; margin: 0 auto; padding: 15px; }
+    .card-container { background-color: #ffffff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .footer { text-align: center; margin-top: 40px; padding: 20px 0; color: #868e96; font-size: 0.85rem; border-top: 1px solid #e9ecef; }
+    .table thead tr th { background-color: #eaeded !important; color: #2c3e50 !important; font-weight: 700; text-align: center; vertical-align: middle; white-space: nowrap; border-bottom: 2px solid #bdc3c7; }
+    .table td { text-align: center; vertical-align: middle; padding: 12px 8px; color: #2c3e50; }
+    .large-checkbox { width: 24px; height: 24px; cursor: pointer; border: 2px solid #bdc3c7; }
+    .large-checkbox:checked { background-color: #198754; border-color: #198754; }
+    .note-input { min-width: 140px; font-size: 0.9rem; border: 1px solid #ced4da; }
+    .absent-row { background-color: #fce8e6 !important; }
+    @media (max-width: 576px) { .card-container { padding: 12px; } h2 { font-size: 1.4rem; } .table td, .table th { font-size: 0.85rem; padding: 10px 5px; } .large-checkbox { width: 22px; height: 22px; } .note-input { min-width: 110px; font-size: 0.8rem; } }
+  </style>
+</head>
+<body>
+
+<div class="container-custom">
+  <div class="card-container">
+    <h2 class="text-center mb-4 fw-bold text-dark">🏫 교시별 출석 관리 시스템 (GitHub 고속 서버)</h2>
+    
+    <ul class="nav nav-pills nav-fill mb-4" id="myTab" role="tablist">
+      <li class="nav-item"><button class="nav-link active fw-bold" id="input-tab" data-bs-toggle="tab" data-bs-target="#input-panel" type="button">당일 출결 입력</button></li>
+      <li class="nav-item"><button class="nav-link fw-bold" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-panel" type="button">전일 기록 확인</button></li>
+    </ul>
+
+    <div class="tab-content" id="myTabContent">
+      <div class="tab-pane fade show active" id="input-panel">
+        <div class="row g-3 align-items-center mb-3 bg-light p-3 rounded border">
+          <div class="col-sm-auto col-6">
+            <label for="attendance-date" class="fw-bold m-0 text-secondary">🗓️ 출석 날짜:</label>
+            <input type="date" id="attendance-date" class="form-control form-control-sm mt-1 fw-bold text-dark" onchange="loadStudentDataFromServer()">
+          </div>
+          <div class="col-sm-auto col-6">
+            <label for="room-filter" class="fw-bold m-0 text-secondary">🚪 자습실 선택:</label>
+            <select id="room-filter" class="form-select form-select-sm mt-1 fw-bold text-dark" onchange="renderStudentTable()">
+              <option value="ALL">전체 보기</option>
+            </select>
+          </div>
+          <div class="col-sm-auto col-12 d-flex align-items-end h-100 mt-sm-4 pt-sm-2">
+            <button class="btn btn-outline-danger btn-sm fw-bold w-100" onclick="resetFormInputs()">🔄 입력창 초기화</button>
+          </div>
+          <div class="col-sm text-sm-end text-start align-self-end mt-2 mt-sm-0"><span id="day-info" class="badge bg-primary p-2 fs-6 fw-bold"></span></div>
+        </div>
+        <div id="status-info" class="alert alert-info py-2 px-3 small mb-3 d-none fw-bold"></div>
+        <div class="table-responsive border rounded">
+          <table class="table table-hover m-0 align-middle">
+            <thead>
+              <tr><th>자습실</th><th>학번</th><th>이름</th><th>자습 요일</th><th>8교시</th><th>야자1</th><th>야자2</th><th>학생 상황 (비고)</th></tr>
+            </thead>
+            <tbody id="student-table-body">
+              <tr><td colspan="8" class="text-center text-muted py-4">명단을 불러오는 중입니다...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="d-grid gap-2 mt-4"><button id="btn-submit" class="btn btn-success btn-lg fw-bold shadow-sm" onclick="submitAttendance()">출결 완료 (최종 확인)</button></div>
+      </div>
+
+      <div class="tab-pane fade" id="history-panel">
+        <div class="row g-3 align-items-center mb-3 bg-light p-3 rounded border">
+          <div class="col-sm-auto col-6">
+            <label for="search-date" class="fw-bold m-0 text-secondary">🗓️ 조회 날짜:</label>
+            <input type="date" id="search-date" class="form-control form-control-sm mt-1 fw-bold text-dark">
+          </div>
+          <div class="col-sm-auto col-6">
+            <label for="history-room-filter" class="fw-bold m-0 text-secondary">🚪 자습실 선택:</label>
+            <select id="history-room-filter" class="form-select form-select-sm mt-1 fw-bold text-dark" onchange="renderHistoryTable()">
+              <option value="ALL">전체 보기</option>
+            </select>
+          </div>
+          <div class="col-sm-auto col-12 d-grid mt-sm-4 pt-sm-2"><button class="btn btn-secondary btn-sm fw-bold shadow-sm" onclick="loadHistory()">🔍 조회하기</button></div>
+        </div>
+        <div id="history-day-info" class="alert alert-info py-2 px-3 small mb-3 d-none fw-bold"></div>
+        <div class="mb-3 p-2 bg-light rounded border text-end">
+          <div class="form-check form-switch d-inline-block text-start">
+            <input class="form-check-input" type="checkbox" id="filter-absent" onchange="toggleAbsentFilter()">
+            <label class="form-check-label fw-bold text-danger small" for="filter-absent">⚠️ 미출석자(결석)만 모아보기</label>
+          </div>
+        </div>
+        <div class="table-responsive border rounded">
+          <table class="table table-hover m-0 align-middle">
+            <thead>
+              <tr><th>자습실</th><th>학번</th><th>이름</th><th>자습 요일</th><th>8교시</th><th>야자1</th><th>야자2</th><th>학생 상황 (비고)</th></tr>
+            </thead>
+            <tbody id="history-table-body">
+              <tr><td colspan="8" class="text-center text-muted py-4">날짜를 선택하고 조회해 주세요.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="footer">제작자: <strong>Math Play Fire_Subi</strong></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // 🔗 [필수 수정] 구글 배포 주소를 아래 큰따옴표 내부에 입력하세요.
+  var GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzI01HjSBtTy-0mFFv2Oo39TvcM218o7Bz7Tx82yH9nbD4oiEJ4yMm9YGDrtisgtfJPcg/exec";
+
+  var rawStudentsList = []; 
+  var dayFilteredStudents = []; 
+  var displayedStudents = []; 
+  var dropdownInitialized = false; 
+
+  window.onload = function() {
+    var today = new Date().toISOString().split('T')[0];
+    document.getElementById('attendance-date').value = today;
+    var yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+    document.getElementById('search-date').value = yesterday.toISOString().split('T')[0];
+    loadStudentDataFromServer();
+  };
+
+  function loadStudentDataFromServer() {
+    var dateStr = document.getElementById('attendance-date').value;
+    if(!dateStr) return;
+    var tbody = document.getElementById('student-table-body');
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">구글 서버와 통신하여 출결 데이터를 동기화 중...</td></tr>';
+
+    // 깃허브에서 표준 fetch() 방식으로 구글 시트 데이터를 요청하는 메커니즘
+    fetch(GAS_WEBAPP_URL + "?date=" + dateStr)
+      .then(response => response.json())
+      .then(list => {
+        rawStudentsList = list;
+        if (!dropdownInitialized) { updateRoomDropdowns(); dropdownInitialized = true; }
+        
+        var hasSavedData = list.some(function(s) { return s.isSaved; });
+        var statusDiv = document.getElementById('status-info');
+        if (hasSavedData) {
+          statusDiv.className = "alert alert-success py-2 px-3 small mb-3";
+          statusDiv.innerHTML = "📢 <strong>안내:</strong> 구글 시트에 이미 기록된 내역을 완벽하게 동기화했습니다.";
+        } else {
+          statusDiv.className = "alert alert-secondary py-2 px-3 small mb-3";
+          statusDiv.innerHTML = "📢 <strong>안내:</strong> 해당 날짜에 아직 기록된 출결 내역이 없습니다.";
+        }
+        statusDiv.classList.remove('d-none');
+        filterStudentByDay(); 
+      })
+      .catch(err => {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-4">❌ 데이터 로딩 실패. 구글 배포 설정을 확인해 주세요.</td></tr>';
+      });
+  }
+
+  function updateRoomDropdowns() {
+    var roomSelect1 = document.getElementById('room-filter');
+    var roomSelect2 = document.getElementById('history-room-filter');
+    var rooms = [];
+    rawStudentsList.forEach(function(student) {
+      if (student.room && student.room !== '-' && rooms.indexOf(student.room) === -1) { rooms.push(student.room); }
+    });
+    rooms.sort();
+    rooms.forEach(function(room) {
+      var opt1 = document.createElement('option'); opt1.value = room; opt1.innerText = room; roomSelect1.appendChild(opt1);
+      var opt2 = document.createElement('option'); opt2.value = room; opt2.innerText = room; roomSelect2.appendChild(opt2);
+    });
+  }
+
+  function filterStudentByDay() {
+    var dateStr = document.getElementById('attendance-date').value;
+    var dateObj = new Date(dateStr);
+    var weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+    var currentDayName = weekDays[dateObj.getDay()];
+    document.getElementById('day-info').innerText = "📅 " + currentDayName + "요일 자습 대상";
+    dayFilteredStudents = rawStudentsList.filter(function(student) { return student.days.indexOf(currentDayName) !== -1; });
+    renderStudentTable();
+  }
+
+  function renderStudentTable() {
+    var tbody = document.getElementById('student-table-body');
+    var selectedRoom = document.getElementById('room-filter').value;
+    if (selectedRoom === 'ALL') { displayedStudents = dayFilteredStudents; } 
+    else { displayedStudents = dayFilteredStudents.filter(function(student) { return student.room === selectedRoom; }); }
+
+    if(displayedStudents.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 fw-bold text-muted">해당 조건의 학생이 없습니다.</td></tr>';
+      return;
+    }
+    
+    var html = '';
+    displayedStudents.forEach(function(student) {
+      var chk8 = student.period8 ? 'checked' : '';
+      var chkY1 = student.yaja1 ? 'checked' : '';
+      var chkY2 = student.yaja2 ? 'checked' : '';
+      var currentNote = student.note ? student.note : '';
+      var keyId = student.shortId;
+
+      html += '<tr>' +
+        '<td><span class="badge bg-secondary">' + student.room + '</span></td>' +
+        '<td><strong>' + student.id + '</strong></td>' +
+        '<td><strong>' + student.name + '</strong></td>' +
+        '<td><span class="badge bg-light text-dark border">' + student.days + '</span></td>' +
+        '<td><input type="checkbox" class="form-check-input large-checkbox" id="p8-' + keyId + '" ' + chk8 + '></td>' +
+        '<td><input type="checkbox" class="form-check-input large-checkbox" id="y1-' + keyId + '" ' + chkY1 + '></td>' +
+        '<td><input type="checkbox" class="form-check-input large-checkbox" id="y2-' + keyId + '" ' + chkY2 + '></td>' +
+        '<td><input type="text" class="form-control form-control-sm note-input" id="note-' + keyId + '" value="' + currentNote + '"></td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+  }
+
+  function resetFormInputs() {
+    if(confirm("입력값을 초기화하시겠습니까?")) {
+      displayedStudents.forEach(function(student) {
+        var keyId = student.shortId;
+        document.getElementById('p8-' + keyId).checked = false;
+        document.getElementById('y1-' + keyId).checked = false;
+        document.getElementById('y2-' + keyId).checked = false;
+        document.getElementById('note-' + keyId).value = "";
+      });
+    }
+  }
+
+  function submitAttendance() {
+    var dateStr = document.getElementById('attendance-date').value;
+    if(!dateStr) return;
+    
+    var payload = [];
+    displayedStudents.forEach(function(student) {
+      var keyId = student.shortId;
+      payload.push({
+        id: student.id, name: student.name,
+        period8: document.getElementById('p8-' + keyId).checked,
+        yaja1: document.getElementById('y1-' + keyId).checked,
+        yaja2: document.getElementById('y2-' + keyId).checked,
+        note: document.getElementById('note-' + keyId).value
+      });
+    });
+
+    if(displayedStudents.length === 0) { alert("기록할 명단이 없습니다."); return; }
+
+    if(confirm(dateStr + "자 현황을 최종 저장하시겠습니까?")) {
+      var btn = document.getElementById('btn-submit');
+      btn.disabled = true; btn.innerText = "구글 시트에 실시간 기록 중...";
+
+      // 구글 스크립트 서버로 POST 데이터 전송
+      fetch(GAS_WEBAPP_URL, {
+        method: "POST",
+        body: JSON.stringify({date: dateStr, payload: payload})
+      })
+      .then(res => res.json())
+      .then(res => {
+        alert(res.message);
+        btn.disabled = false; btn.innerText = "출결 완료 (최종 확인)";
+        loadStudentDataFromServer();
+      })
+      .catch(err => {
+        alert("❌ 저장 실패: 서버 상태를 확인하세요.");
+        btn.disabled = false; btn.innerText = "출결 완료 (최종 확인)";
+      });
+    }
+  }
+
+  var fullHistoryData = [];
+  var targetDayName = ""; 
+
+  function loadHistory() {
+    var dateStr = document.getElementById('search-date').value;
+    if(!dateStr) return;
+    var tbody = document.getElementById('history-table-body');
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">조회 중...</td></tr>';
+
+    var dateObj = new Date(dateStr);
+    var weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+    targetDayName = weekDays[dateObj.getDay()];
+
+    var historyDayDiv = document.getElementById('history-day-info');
+    historyDayDiv.innerHTML = "🔍 <strong>" + dateStr + " (" + targetDayName + "요일)</strong> 대상자 필터링 상태입니다.";
+    historyDayDiv.classList.remove('d-none');
+
+    fetch(GAS_WEBAPP_URL + "?date=" + dateStr)
+      .then(res => res.json())
+      .then(data => { fullHistoryData = data; renderHistoryTable(); });
+  }
+
+  function renderHistoryTable() {
+    var tbody = document.getElementById('history-table-body');
+    var isFilterOn = document.getElementById('filter-absent').checked;
+    var selectedRoom = document.getElementById('history-room-filter').value;
+    if(fullHistoryData.length === 0) { tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">기록이 없습니다.</td></tr>'; return; }
+
+    var html = ''; var count = 0;
+    fullHistoryData.forEach(function(row) {
+      if (row.days && row.days.indexOf(targetDayName) === -1) return;
+      if (selectedRoom !== 'ALL' && row.room !== selectedRoom) return;
+
+      var p8Status = row.isSaved ? (row.period8 ? "출석" : "결석") : "결석";
+      var y1Status = row.isSaved ? (row.yaja1 ? "출석" : "결석") : "결석";
+      var y2Status = row.isSaved ? (row.yaja2 ? "출석" : "결석") : "결석";
+      var isAbsent = (p8Status === '결석' || y1Status === '결석' || y2Status === '결석');
+      if (isFilterOn && !isAbsent) return; 
+
+      count++;
+      var badge8 = p8Status === '출석' ? '<span class="badge bg-success">출석</span>' : '<span class="badge bg-danger">결석</span>';
+      var badgeY1 = y1Status === '출석' ? '<span class="badge bg-success">출석</span>' : '<span class="badge bg-danger">결석</span>';
+      var badgeY2 = y2Status === '출석' ? '<span class="badge bg-success">출석</span>' : '<span class="badge bg-danger">결석</span>';
+      var rowClass = isAbsent ? 'absent-row' : '';
+
+      html += '<tr class="' + rowClass + '">' +
+        '<td><span class="badge bg-secondary">' + (row.room || '-') + '</span></td>' +
+        '<td><strong>' + row.id + '</strong></td>' +
+        '<td><strong>' + row.name + '</strong></td>' +
+        '<td><span class="badge bg-light text-dark border">' + (row.days || '-') + '</span></td>' +
+        '<td>' + badge8 + '</td>' +
+        '<td>' + badgeY1 + '</td>' +
+        '<td>' + badgeY2 + '</td>' +
+        '<td class="text-start fw-bold text-dark">' + (row.note || '-') + '</td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = count === 0 ? '<tr><td colspan="8" class="text-center py-4">조건에 일치하는 데이터가 없습니다.</td></tr>' : html;
+  }
+
+  function toggleAbsentFilter() { renderHistoryTable(); }
+</script>
+</body>
+</html>
