@@ -140,17 +140,16 @@
     fetch(GAS_WEBAPP_URL + "?date=" + dateStr)
       .then(response => response.json())
       .then(list => {
-        // [🛠️ 핵심수정] 1차: 자습실 오름차순 정렬 -> 2차: 자습실이 같으면 학번 형태 그대로 오름차순 정렬
+        // [정상화 및 정렬] 1차: 자습실 오름차순 -> 2차: 학번 형태 그대로 오름차순 정렬
         list.sort(function(a, b) {
           var roomA = String(a.room || "").trim();
           var roomB = String(b.room || "").trim();
           var roomCompare = roomA.localeCompare(roomB, undefined, {sensitivity: 'base'});
           
           if (roomCompare !== 0) {
-            return roomCompare; // 자습실이 다르면 자습실 기준으로 정렬
+            return roomCompare;
           }
           
-          // 자습실이 같으면 원본 학번 데이터로 정렬
           var idA = String(a.id || "").trim();
           var idB = String(b.id || "").trim();
           return idA.localeCompare(idB, undefined, {numeric: true, sensitivity: 'base'});
@@ -217,7 +216,9 @@
       var chkY1 = student.yaja1 ? 'checked' : '';
       var chkY2 = student.yaja2 ? 'checked' : '';
       var currentNote = student.note ? student.note : '';
-      var keyId = student.shortId;
+      
+      // [복구핵심] 기존의 고유식별 방식을 정확하게 매칭시킵니다.
+      var keyId = student.shortId || student.id; 
 
       html += '<tr>' +
         '<td><span class="badge bg-secondary">' + student.room + '</span></td>' +
@@ -236,7 +237,7 @@
   function resetFormInputs() {
     if(confirm("입력값을 초기화하시겠습니까?")) {
       displayedStudents.forEach(function(student) {
-        var keyId = student.shortId;
+        var keyId = student.shortId || student.id;
         document.getElementById('p8-' + keyId).checked = false;
         document.getElementById('y1-' + keyId).checked = false;
         document.getElementById('y2-' + keyId).checked = false;
@@ -251,7 +252,7 @@
     
     var payload = [];
     displayedStudents.forEach(function(student) {
-      var keyId = student.shortId;
+      var keyId = student.shortId || student.id;
       payload.push({
         id: student.id, name: student.name,
         period8: document.getElementById('p8-' + keyId).checked,
@@ -304,7 +305,6 @@
     fetch(GAS_WEBAPP_URL + "?date=" + dateStr)
       .then(res => res.json())
       .then(data => { 
-        // [🛠️ 핵심수정] 전일 기록 조회 데이터도동일하게 1차: 자습실 오름차순 -> 2차: 학번 원본 오름차순 정렬
         data.sort(function(a, b) {
           var roomA = String(a.room || "").trim();
           var roomB = String(b.room || "").trim();
